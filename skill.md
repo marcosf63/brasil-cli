@@ -5,7 +5,9 @@ CLI para consultar APIs públicas brasileiras diretamente do terminal.
 ## Instalação
 
 ```bash
-uv tool install /caminho/para/brasil-cli
+git clone https://github.com/marcosf63/brasil-cli.git
+cd brasil-cli
+uv tool install .
 ```
 
 ## Flags globais obrigatórias para agentes
