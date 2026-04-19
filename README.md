@@ -7,13 +7,15 @@ Inspirado na arquitetura do [mcp-brasil](https://github.com/jxnxts/mcp-brasil), 
 ## Instalação
 
 ```bash
-# Via pip (editable)
-git clone <repo>
+git clone https://github.com/marcosf63/brasil-cli.git
 cd brasil-cli
-pip install -e .
+uv tool install .
+```
 
-# Ou direto
-pip install -e ".[dev]"  # com ferramentas de dev
+Para desenvolvimento:
+
+```bash
+uv pip install -e ".[dev]"
 ```
 
 ## Uso
@@ -22,89 +24,116 @@ pip install -e ".[dev]"  # com ferramentas de dev
 brasil --help
 ```
 
+## Uso com Agentes de AI
+
+Esta CLI foi projetada para ser consumida por agentes de AI e LLMs. Consulte o [skill.md](skill.md) para a documentação completa de uso com agentes, incluindo:
+
+- Flag `--json` para output estruturado
+- Flag `--todos` para auto-paginação
+- Metadados de paginação no JSON (`_pagination`)
+- Exemplos de integração em Python
+
+## Comandos
+
 ### Banco Central (Bacen)
 
 ```bash
-# Listar séries disponíveis
+# Painel de indicadores atuais
+brasil bacen indicadores
+
+# Séries temporais
+brasil bacen selic [-n N]
+brasil bacen ipca [-n N]
+brasil bacen cambio [-n N]
+brasil bacen consultar <serie_ou_codigo> [-n N] [--inicio dd/MM/aaaa] [--fim dd/MM/aaaa]
+
+# Buscar série por nome no catálogo SGS
+brasil bacen buscar <termo>
+
+# Expectativas de mercado — Boletim Focus
+brasil bacen focus <IPCA|Selic|Câmbio|"PIB Total"> [--inicio YYYY-MM-DD]
+
+# Listar séries pré-cadastradas
 brasil bacen series
-
-# Consultar Selic (últimos 12 valores)
-brasil bacen selic
-
-# IPCA mensal (últimos 6)
-brasil bacen ipca -n 6
-
-# Câmbio dólar
-brasil bacen cambio
-
-# Qualquer série por código SGS
-brasil bacen consultar 433 -n 10
-
-# Série por período
-brasil bacen consultar selic --inicio 01/01/2024 --fim 31/12/2024
 ```
 
 ### IBGE
 
 ```bash
-# Listar estados
 brasil ibge estados
-
-# Municípios do Ceará
-brasil ibge municipios CE
-
-# Buscar cidade por nome
-brasil ibge buscar-cidade "Sobral"
-
-# Frequência de um nome
-brasil ibge nomes marcos
+brasil ibge municipios <UF>
+brasil ibge buscar-cidade <nome>
+brasil ibge populacao [codigo_ibge]
+brasil ibge pib
+brasil ibge nomes <nome>
 ```
 
 ### Câmara dos Deputados
 
 ```bash
-# Buscar deputados
-brasil camara deputados
-brasil camara deputados --uf CE --partido PT
+brasil camara deputados [--uf UF] [--partido P] [--nome N] [--todos]
+brasil camara proposicoes [--keywords K] [--tipo T] [--ano A] [--todos]
+brasil camara deputado <id>
+brasil camara despesas <id_deputado> [--ano A] [--mes M]
+brasil camara votacoes <id_proposicao>
+```
 
-# Buscar proposições
-brasil camara proposicoes --keywords "inteligência artificial" --ano 2024
-brasil camara proposicoes --tipo PL --ano 2024
+### Senado Federal
 
-# Despesas de um deputado (cota parlamentar)
-brasil camara despesas 12345 --ano 2024
+```bash
+brasil senado senadores [--uf UF] [--partido P] [--nome N]
+brasil senado senador <codigo>
+brasil senado materias [--tipo T] [--ano A] [--keywords K] [--todos]
+brasil senado votacoes <ano>
+brasil senado comissoes
 ```
 
 ### BrasilAPI
 
 ```bash
-# CEP
-brasil br cep 63000-000
-
-# CNPJ
-brasil br cnpj 00.000.000/0001-91
-
-# Bancos
-brasil br bancos
-brasil br bancos "nubank"
-
-# Feriados
-brasil br feriados 2026
-
-# DDD
-brasil br ddd 88
-
-# Tabela FIPE
-brasil br fipe 001004-9
+brasil br cep <CEP>
+brasil br cnpj <CNPJ>
+brasil br banco <codigo>
+brasil br bancos [busca]
+brasil br feriados <ano>
+brasil br ddd <ddd>
+brasil br fipe <codigo_fipe>
+brasil br marcas-fipe [--tipo carros|motos|caminhoes]
+brasil br pix
 ```
 
 ### Portal da Transparência
 
-Requer chave de API (gratuita). Exporte como variável ou passe via `--key`:
+Requer chave de API gratuita em [portaldatransparencia.gov.br](https://portaldatransparencia.gov.br/api-de-dados).
+Exporte como variável ou passe via `--key`:
 
 ```bash
 export TRANSPARENCIA_API_KEY="sua-chave"
-brasil transparencia contratos --inicio 01/01/2024 --fim 31/12/2024
+
+brasil transparencia contratos [--inicio dd/MM/aaaa] [--fim dd/MM/aaaa] [--todos]
+brasil transparencia servidores [--nome N] [--orgao cod] [--todos]
+brasil transparencia despesas <ano>
+brasil transparencia licitacoes [--orgao cod] [--todos]
+brasil transparencia emendas [--ano A] [--autor nome] [--todos]
+brasil transparencia bolsa-familia <MM/AAAA> [--municipio codigo_ibge]
+brasil transparencia viagens <cpf>
+brasil transparencia sancoes <cnpj_ou_cpf>
+```
+
+## Flags globais
+
+| Flag | Descrição |
+|------|-----------|
+| `--json` | Output em JSON estruturado (ideal para scripts e agentes de AI) |
+| `--todos` | Auto-paginação — retorna todos os resultados de uma vez |
+
+```bash
+# Output JSON
+brasil --json bacen indicadores
+brasil --json camara deputados --uf SP
+
+# Todos os resultados sem paginação
+brasil --json camara deputados --uf SP --todos
 ```
 
 ## Arquitetura
@@ -112,14 +141,15 @@ brasil transparencia contratos --inicio 01/01/2024 --fim 31/12/2024
 ```
 brasil_cli/
 ├── cli.py              # Entry point Typer com todos os comandos
-├── http_client.py      # httpx async com retry + backoff
-├── output.py           # Formatação Rich (tabelas, painéis, séries)
+├── http_client.py      # httpx async com retry + backoff exponencial
+├── output.py           # Formatação Rich (tabelas, painéis, séries) e modo JSON
 └── providers/          # Um módulo por fonte de dados
-    ├── bacen.py        # SGS — Selic, IPCA, câmbio, CDI, PIB
-    ├── ibge.py         # Localidades, população, nomes
-    ├── camara.py       # Deputados, proposições, despesas
+    ├── bacen.py        # SGS — Selic, IPCA, câmbio, CDI, PIB, Focus
+    ├── ibge.py         # Localidades, população, nomes, PIB
+    ├── camara.py       # Deputados, proposições, votações, despesas
     ├── brasilapi.py    # CEP, CNPJ, bancos, feriados, FIPE, PIX
-    └── transparencia.py # Contratos, servidores, despesas federais
+    ├── senado.py       # Senadores, matérias, votações, comissões
+    └── transparencia.py # Contratos, servidores, licitações, emendas, Bolsa Família
 ```
 
 Cada provider é independente e async. A CLI usa `asyncio.run()` para bridgear o sync do Typer com os providers async — permitindo reuso dos providers em outros contextos (bots, scripts, APIs).
@@ -135,7 +165,6 @@ Cada provider é independente e async. A CLI usa `asyncio.run()` para bridgear o
 - **Typer** — CLI framework com auto-complete e help
 - **httpx** — HTTP client async
 - **Rich** — Output formatado com tabelas e cores
-- **Pydantic** (opcional) — Validação de schemas
 
 ## Licença
 
